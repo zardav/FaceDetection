@@ -3,3 +3,4 @@
 *.pyc
 FaceDetection/.pydevproject
 FaceDetection/.project
+faces/
