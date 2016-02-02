@@ -163,7 +163,7 @@ class MyViolaClassifier(AbstractClassfier):
             cur = classifier.valuefy(rect)
             if cur < 0:
                 failed += 1 / (1 + classifier.svm.error)
-                if failed > 1:
+                if failed > 1.5:
                     return -1
             else:
                 sum_ += cur / (classifier.svm.simple_error**2 / 50 + 1)
