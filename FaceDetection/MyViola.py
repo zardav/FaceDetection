@@ -1,7 +1,7 @@
 import numpy as np
 import funcs
 from scipy import ndimage
-from Svm import Svm
+from MySvm import MySvm
 from AbstractClassifier import AbstractClassfier
 
 class _Feature:
@@ -45,7 +45,7 @@ class _SubClassifier(AbstractClassfier):
 
     def __init__(self, features, false_positive_loss=1, false_negative_loss=1):
         super().__init__()
-        self.svm = Svm()
+        self.svm = MySvm()
         self._features = features
         self.svm.false_negative_loss = false_negative_loss
         self.svm.false_positive_loss = false_positive_loss
@@ -113,9 +113,9 @@ class MyViolaClassifier(AbstractClassfier):
         add([([((70, 94), (35, 65))], [((70, 94), (13, 35)), ((70, 94), (65, 87))]),  # nose vs sides of nose
              ([((52, 72), (16, 84))], [((72, 92), (16, 84))])])  # eyes vs nose
         add([([((57, 73), (20, 44)), ((57, 73), (56, 80))], [((29, 51), (20, 80))])])  # eyes vs forehead
-        add([([((50, 70), (18, 44)), ((50, 70), (56, 82))], [])]) # eyes only
-        add([([((73, 96), (36, 65))], [])]) # nose only
-        add([([((96, 118), (30, 70))], [])]) # mouth only
+        add([([((50, 70), (18, 44)), ((50, 70), (56, 82))], [])])  # eyes only
+        add([([((73, 96), (36, 65))], [])])  # nose only
+        add([([((96, 118), (30, 70))], [])])  # mouth only
         add([([((0, 136), (0, 49))], [((0, 136), (50, 99))])])  # horizontal symmetric
         # third of horizontal of each side
         add([([((0, 136), (0, 66))], [((0, 136), (67, 99))]), ([((0, 136), (0, 33))], [((0, 136), (34, 99))])])
@@ -129,7 +129,7 @@ class MyViolaClassifier(AbstractClassfier):
                 for t in t_list:
                     for f in f_list:
                         features.append(_Feature(t, f[0], f[1]))
-                self.rejecters.append(_SubClassifier(features, false_negative_loss=40))
+                self.rejecters.append(_SubClassifier(features, false_negative_loss=80))
 
     def add_examples(self, imgs, y):
         for img in imgs:
@@ -166,5 +166,5 @@ class MyViolaClassifier(AbstractClassfier):
                 if failed > 1.5:
                     return -1
             else:
-                sum_ += cur / (classifier.svm.simple_error**2 / 50 + 1)
+                sum_ += cur / (classifier.svm.simple_error + 0.02)
         return sum_

@@ -50,16 +50,16 @@ def get_sub_pics_with_size(imgs, shape):
 
 
 def temp():
-    files = glob.glob('../../faces/cropped/*.jpg')
+    files = glob.glob('../faces/cropped/*.jpg')
     faces = (misc.imread(im) for im in files)
     mv = MyViolaClassifier()
     mv.add_examples(faces, 1)
-    files = glob.glob('../../faces/nofaces/*.jpg')
+    files = glob.glob('../faces/nofaces/*.jpg')
     nofaces = (misc.imread(im) for im in files)
     mv.add_examples(get_sub_pics_with_size(nofaces, (137, 100)), -1)
     mv.learn()
     mv.save('my_viola.pkl')
-    files = glob.glob('../../faces/*.jpg')
+    files = glob.glob('../faces/*.jpg')
     for f in files:
         img = misc.imread(f)
         new_path = f.replace('/faces\\', '/faces\\new1\\')
