@@ -33,6 +33,7 @@ def get_sub_pics_with_size(imgs, shape):
     scales = np.arange(.2, 1, .2)
     m, n = shape
     for img in imgs:
+        yield misc.imresize(img, shape)
         while img.shape[0] > 800:
             img = misc.imresize(img, 0.5)
         for scl in scales:
@@ -56,14 +57,14 @@ def temp():
     mv.add_examples(faces, 1)
     files = glob.glob('../faces/nofaces/*.jpg')
     nofaces = (misc.imread(im) for im in files)
-    mv.add_examples(get_sub_pics_with_size(nofaces, (137, 100)), -1)
+    mv.add_examples(get_sub_pics_with_size(nofaces, (70, 70)), -1)
     mv.learn()
     mv.save('my_viola.pkl')
     files = glob.glob('../faces/*.jpg')
     for f in files:
         img = misc.imread(f)
         new_path = f.replace('/faces\\', '/faces\\new1\\')
-        i, j = find_face(img, (137, 100), mv)
+        i, j = find_face(img, (70, 70), mv)
         i1, i2 = i
         j1, j2 = j
         new_img = img[i1:i2, j1:j2]

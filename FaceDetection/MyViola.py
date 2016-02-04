@@ -84,6 +84,7 @@ class MyViolaClassifier(AbstractClassfier):
         self.add_basic_transforms()
         self.add_basic_features()
         self.add_basic_classifiers()
+        self.num_examples = 0
 
     def change_image(self, img):
         self.img = img
@@ -107,20 +108,16 @@ class MyViolaClassifier(AbstractClassfier):
 
     def add_basic_features(self):
         def add(l): self.plus_minus_rects.append(l)
-        add([([((0, 136), (0, 99))], []),  # whole image
-             ([((0, 136), (0, 99))], [((20, 136), (15, 85)), ((20, 136), (15, 85))])])  # skin area vs whole image
-        add([([((98, 110), (30, 70)), ((98, 110), (30, 70))], [((90, 118), (25, 75))])])  # mouth vs around mouth
-        add([([((70, 94), (35, 65))], [((70, 94), (13, 35)), ((70, 94), (65, 87))]),  # nose vs sides of nose
-             ([((52, 72), (16, 84))], [((72, 92), (16, 84))])])  # eyes vs nose
-        add([([((57, 73), (20, 44)), ((57, 73), (56, 80))], [((29, 51), (20, 80))])])  # eyes vs forehead
-        add([([((50, 70), (18, 44)), ((50, 70), (56, 82))], [])])  # eyes only
-        add([([((73, 96), (36, 65))], [])])  # nose only
-        add([([((96, 118), (30, 70))], [])])  # mouth only
-        add([([((0, 136), (0, 49))], [((0, 136), (50, 99))])])  # horizontal symmetric
-        # third of horizontal of each side
-        add([([((0, 136), (0, 66))], [((0, 136), (67, 99))]), ([((0, 136), (0, 33))], [((0, 136), (34, 99))])])
-        # quarter of vertical from top and bottom
-        add([([((0, 34), (0, 99))], [((34, 136), (0, 99))]), ([((0, 102), (0, 99))], [((102, 136), (0, 99))])])
+        add([([((0, 69), (0, 69))], [])])  # whole image
+        add([([((53, 67), (18, 52)), ((53, 67), (18, 52))], [((50, 69), (10, 60))])])  # mouth vs around mouth
+        add([([((36, 52), (27, 43))], [((36, 52), (10, 26)), ((36, 52), (44, 60))]),  # nose vs sides of nose
+             ([((20, 35), (10, 60))], [((36, 52), (10, 60))])])  # eyes vs nose
+        add([([((20, 35), (10, 60))], [((4, 19), (10, 60))])])  # eyes vs forehead
+        add([([((20, 35), (10, 30)), ((20, 35), (40, 60))], []),  # eyes only
+             ([((36, 52), (22, 48))], [])])  # nose only
+        add([([((53, 67), (18, 52))], [])])  # mouth only
+        add([([((0, 69), (0, 34))], [((0, 69), (50, 69))])])  # horizontal symmetric
+        add([([((0, 69), (0, 69))], [((0, 69), (4, 65)), ((0, 69), (4, 65))])])  # horizontal edges
 
     def add_basic_classifiers(self):
         for t_list in self.transform_lists:
@@ -129,11 +126,12 @@ class MyViolaClassifier(AbstractClassfier):
                 for t in t_list:
                     for f in f_list:
                         features.append(_Feature(t, f[0], f[1]))
-                self.rejecters.append(_SubClassifier(features, false_negative_loss=80))
+                self.rejecters.append(_SubClassifier(features, false_negative_loss=20))
 
     def add_examples(self, imgs, y):
         for img in imgs:
             self.change_image(img)
+            self.num_examples += 1
             for classifier in self.rejecters:
                 classifier.add_current_image(y)
 
@@ -163,8 +161,32 @@ class MyViolaClassifier(AbstractClassfier):
             cur = classifier.valuefy(rect)
             if cur < 0:
                 failed += 1 / (1 + classifier.svm.error)
-                if failed > 1.5:
+                if failed > 5.5:
                     return -1
             else:
                 sum_ += cur / (classifier.svm.simple_error + 0.02)
         return sum_
+
+    def ada_boost(self):
+        _T = len(self.rejecters)
+        eps_vec = np.empty(_T)
+        alpha_vec = np.empty(_T)
+        m = self.num_examples
+        _D = np.ones(m) / m
+        for t in range(_T):
+            example_indexes = []
+            for i, d in enumerate(_D):
+                if np.random.binomial(1, d) == 1:
+                    example_indexes.append(i)
+            h = self.rejecters[t]
+            t_examples = h.examples
+            h.examples = h.examples[example_indexes]
+            h.learn()
+            h.examples = t_examples
+            def bool_to_sign(f): return f * 2 - 1
+            classifing_results = bool_to_sign(h.classify_vec(t_examples[:, :-1]))
+            eps_vec[t] = (_D * np.abs(classifing_results - t_examples[:, -1])).sum() / 2
+            alpha_vec[t] = np.log((1 - eps_vec[t]) / eps_vec[t]) / 2
+            _D *= np.exp(-alpha_vec[t]*t_examples[:, -1]*classifing_results)
+            _D /= _D.sum()
+        return alpha_vec

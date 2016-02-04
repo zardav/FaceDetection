@@ -63,3 +63,9 @@ def implusrect(img, i, j, rgb):
     img1[i1, j1:j2] = np.array(rgb)
     img1[i2, j1:j2] = np.array(rgb)
     return img1
+
+
+def ada_boost(classifier_list, examples, ):
+    _T = len(classifier_list)
+    m = examples.shape[0]
+    _D
