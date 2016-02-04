@@ -170,28 +170,31 @@ class MyViolaClassifier(AbstractClassfier):
         return (self.alpha_vec * [c.classify(rect) for c in self.simple_classifiers]).sum()
 
     def ada_boost(self):
-         _T = len(self.simple_classifiers)  # Num of classifiers
+        _T = len(self.simple_classifiers)  # Num of classifiers
         eps_vec = np.empty(_T)  # Size of error for each classifier
         alpha_vec = np.empty(_T)  # Reliability for each classifier
         m = self.num_examples  # m is amount of examples
         _D = np.ones(m) / m  # Distribution probability for each example
         for t in range(_T):
-			#  In the next section we choose which examples will serve us.
-		    #  Choise is made by the distribution probability of the example (in _D vector, as mentioned above)
+            #  In the next section we choose which examples will serve us.
+            #  Choice is made by the distribution probability of the example (in _D vector, as mentioned above)
             example_indexes = []
             for i, d in enumerate(_D):
                 if np.random.binomial(1, d) == 1:
                     example_indexes.append(i)
             if not example_indexes:  # If example_indexes is empty, we put the example with max distribution
                 example_indexes.append(np.argmax(_D))
-             h = self.simple_classifiers[t]  # h is the current classify
+            h = self.simple_classifiers[t]  # h is the current classify
             t_examples = h.examples  # Save original examples of h, before we change them to selected examples
             h.examples = h.examples[example_indexes]  # Change examples of h to selected examples
             h.learn()
             h.examples = t_examples  # Return original examples of h
-            classifing_results = h.svm.classify_vec(t_examples[:,:-1])  # Applying the classify on all of our training data, and save results vector (results in {1,-1})
-            eps_vec[t] = (_D * np.abs(classifing_results - t_examples[:, -1])).sum() / 2  # Summing errors when each error multipiled in its probability
+            # Applying the classify on all of our training data, and save results vector (results in {1,-1})
+            classifying_results = h.svm.classify_vec(t_examples[:,:-1])
+            # Summing errors when each error multipiled in its probability
+            eps_vec[t] = (_D * np.abs(classifying_results - t_examples[:, -1])).sum() / 2
             alpha_vec[t] = np.log((1 - eps_vec[t]) / eps_vec[t]) / 2  # Formula of alpha
-            _D *= np.exp(-alpha_vec[t]*t_examples[:, -1]*classifing_results)  # Formula to change probability for each example
-            _D /= _D.sum()  # Normalizition distribution probability
+            _D *= np.exp(-alpha_vec[t]*t_examples[:, -1]*classifying_results)  # Formula to change probability for each example
+            _D /= _D.sum()  # Normalization distribution probability
         return alpha_vec
+    
