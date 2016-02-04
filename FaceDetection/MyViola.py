@@ -3,6 +3,7 @@ import funcs
 from scipy import ndimage
 from MySvm import MySvm
 from AbstractClassifier import AbstractClassfier
+import itertools
 
 class _Feature:
     def __init__(self, trans, plus, minus):
@@ -78,6 +79,7 @@ class MyViolaClassifier(AbstractClassfier):
         super().__init__()
         self.rejecters = []
         self.sorted_rejecters = []
+        self.simple_classifiers = []
         self.plus_minus_rects = []
         self.transform_lists = []
         self.img = None
@@ -85,6 +87,7 @@ class MyViolaClassifier(AbstractClassfier):
         self.add_basic_features()
         self.add_basic_classifiers()
         self.num_examples = 0
+        self.alpha_vec = np.empty(0)
 
     def change_image(self, img):
         self.img = img
@@ -126,19 +129,20 @@ class MyViolaClassifier(AbstractClassfier):
                 for t in t_list:
                     for f in f_list:
                         features.append(_Feature(t, f[0], f[1]))
-                self.rejecters.append(_SubClassifier(features, false_negative_loss=20))
+                self.rejecters.append(_SubClassifier(features, false_negative_loss=50))
+                self.simple_classifiers.append(_SubClassifier(features))
 
     def add_examples(self, imgs, y):
         for img in imgs:
             self.change_image(img)
             self.num_examples += 1
-            for classifier in self.rejecters:
+            for classifier in itertools.chain(self.rejecters, self.simple_classifiers):
                 classifier.add_current_image(y)
 
     def learn(self):
-        for classifier in self.rejecters:
+        self.alpha_vec = self.ada_boost()
+        for classifier in itertools.chain(self.rejecters, self.simple_classifiers):
             classifier.learn()
-            classifier.svm._w /= np.linalg.norm(classifier.svm._w)
         self.sorted_rejecters = sorted(self.rejecters, key=lambda c: c.svm.error)
 
     def to_list(self):
@@ -149,10 +153,10 @@ class MyViolaClassifier(AbstractClassfier):
             if not isinstance(l, list):
                 raise ValueError('MyViolaClassifier.from_list: list_ has to be list of lists')
             c.from_list(l)
-        self.sorted_rejecters = sorted(self.rejecters, key=lambda c: c.svm.error)
+        self.sorted_rejecters = sorted(self.rejecters, key=lambda x: x.svm.error)
 
     def classify(self, rect):
-        return self.valuefy(rect) > 0
+        return 1 if self.valuefy(rect) > 0 else -1
 
     def valuefy(self, rect):
         failed = 0
@@ -163,12 +167,10 @@ class MyViolaClassifier(AbstractClassfier):
                 failed += 1 / (1 + classifier.svm.error)
                 if failed > 5.5:
                     return -1
-            else:
-                sum_ += cur / (classifier.svm.simple_error + 0.02)
-        return sum_
+        return (self.alpha_vec * [c.classify(rect) for c in self.simple_classifiers]).sum()
 
     def ada_boost(self):
-        _T = len(self.rejecters)
+        _T = len(self.simple_classifiers)
         eps_vec = np.empty(_T)
         alpha_vec = np.empty(_T)
         m = self.num_examples
@@ -178,15 +180,16 @@ class MyViolaClassifier(AbstractClassfier):
             for i, d in enumerate(_D):
                 if np.random.binomial(1, d) == 1:
                     example_indexes.append(i)
-            h = self.rejecters[t]
+            if not example_indexes:
+                example_indexes.append(np.argmax(_D))
+            h = self.simple_classifiers[t]
             t_examples = h.examples
             h.examples = h.examples[example_indexes]
             h.learn()
             h.examples = t_examples
-            def bool_to_sign(f): return f * 2 - 1
-            classifing_results = bool_to_sign(h.classify_vec(t_examples[:, :-1]))
-            eps_vec[t] = (_D * np.abs(classifing_results - t_examples[:, -1])).sum() / 2
+            classifying_results = h.svm.classify_vec(t_examples[:, :-1])
+            eps_vec[t] = (_D * np.abs(classifying_results - t_examples[:, -1])).sum() / 2
             alpha_vec[t] = np.log((1 - eps_vec[t]) / eps_vec[t]) / 2
-            _D *= np.exp(-alpha_vec[t]*t_examples[:, -1]*classifing_results)
+            _D *= np.exp(-alpha_vec[t]*t_examples[:, -1]*classifying_results)
             _D /= _D.sum()
         return alpha_vec

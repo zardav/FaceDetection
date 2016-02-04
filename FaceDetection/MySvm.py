@@ -60,6 +60,7 @@ class MySvm(AbstractClassfier):
         x_mat = examples[:, :-1]
         mins = x_mat.min(axis=0)
         maxs = x_mat.max(axis=0) - mins
+        maxs[maxs == 0] = 1
         x_mat[:] = (x_mat - mins) / maxs
         c_len = c_arr.shape[0]
         errors = np.zeros(c_len)
@@ -68,10 +69,11 @@ class MySvm(AbstractClassfier):
             error = 0
             for _ in range(cross_validation_times):
                 shuffled = np.random.permutation(examples)
-                learnings, testings = np.split(shuffled, [middle])
+                learnings, testings = shuffled[:middle], shuffled[middle:]
                 w_vec = self._svm_c(learnings, c, epoch)
                 error = sum([(r[-1] * w_vec.dot(r[:-1]) < 0) * self._loss_value(r[-1]) for r in testings])
-            errors[j] += error/testings.shape[0]
+            if testings.shape[0] > 0:
+                errors[j] += error/testings.shape[0]
         errors /= cross_validation_times
         result_c = c_arr[np.argmin(errors)]
         w_vec = self._svm_c(examples, result_c, epoch)
@@ -91,7 +93,7 @@ class MySvm(AbstractClassfier):
         self._w, self._mins, self._maxs, self.error, self.simple_error = list_
 
     def classify(self, x):
-        return self.valuefy(x) > 0
+        return 1 if self.valuefy(x) > 0 else -1
 
     def classify_vec(self, vec, axis=-1):
         return np.apply_along_axis(self.classify, axis, vec)
