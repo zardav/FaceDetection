@@ -80,7 +80,7 @@ class MySvm(AbstractClassfier):
                 range_ = range(len(answers))
                 errors[j] += self.get_all_errors(answers, y[testings_i], d[testings_i])
         errors /= cross_validation_times
-        index_min = errors[:, 0].argmin()
+        index_min = errors[:, 1].argmin()
         result_c = c_arr[index_min]
         w_vec = self._svm_c(x, y, d, result_c, epoch)
         #ending

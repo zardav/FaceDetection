@@ -45,12 +45,13 @@ class _SubClassifier(AbstractClassfier):
     def to_list(self):
         return self.svm.to_list()
 
-    def __init__(self, features):
+    def __init__(self, features, rejecter=False):
         super().__init__()
         self.svm = MySvm()
         self._features = features
         self._row_len = len(features) + 1
         self.examples = np.empty((0, self._row_len))
+        self.is_rejecter = rejecter
 
     def add_current_image(self, y):
         row = np.empty(self._row_len)
@@ -65,6 +66,8 @@ class _SubClassifier(AbstractClassfier):
     def learn(self, d=None):
         examples = np.copy(self.examples)
         x, y = examples[:, :-1], examples[:, -1]
+        if d is None and self.is_rejecter:
+            d = np.fromiter((30 if s == 1 else 1 for s in y), dtype=int)
         self.svm.learn(x, y, d, c_arr=2**np.arange(-5, 15, 2.0),
                        epoch=15, cross_validation_times=7, learning_part=0.7)
 
@@ -140,6 +143,7 @@ class MyViolaClassifier(AbstractClassfier):
                     for f in f_list:
                         features.append(_Feature(t, f[0], f[1]))
                 self.classifiers.append(_SubClassifier(features))
+                self.classifiers.append(_SubClassifier(features, rejecter=True))
 
     def add_examples(self, imgs, y):
         for img in imgs:
@@ -187,13 +191,13 @@ class MyViolaClassifier(AbstractClassfier):
             cur = rej.valuefy(rect)
             if cur < 0:
                 p *= 1 - rej.svm.detection_rate
-                if p < 0.0001:
+                if p < 0.00001:
                     return -1
             else:
                 sum_ += cur * self.weight_vec[i]
                 p = mult_prob(p, 1 - rej.svm.fp_error)
                 if p > 0.99:
-                    return sum_ / (i + 1) * (m + 1) #/ self.iv_weight[i]
+                    return sum_ / self.iv_weight[i]
             i += 1
         return sum_
 
