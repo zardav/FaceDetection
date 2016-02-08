@@ -14,7 +14,6 @@ class MySvm(AbstractClassfier):
         self.fn_error = 0
         self.fp_error = 0
         self.simple_error = 0
-        self.detection_rate = 0
 
     @staticmethod
     def _sub_gradient_loss(x, y, d, w_vec, c, n):
@@ -69,7 +68,7 @@ class MySvm(AbstractClassfier):
         x[:] = (x - mins) / maxs
         x = np.c_[x, np.ones(n)]
         c_len = c_arr.shape[0]
-        errors = np.zeros((c_len, 5))  # simple, weighted, fp, fn, detection_rate
+        errors = np.zeros((c_len, 4))  # simple, weighted, fp, fn
         for j in range(c_len):
             c = c_arr[j]
             for _ in range(cross_validation_times):
@@ -78,7 +77,8 @@ class MySvm(AbstractClassfier):
                 w_vec = self._svm_c(x[learnings_i], y[learnings_i], d[learnings_i], c, epoch)
                 answers = [(1 if w_vec.dot(x[i]) > 0 else -1) for i in testings_i]
                 range_ = range(len(answers))
-                errors[j] += self.get_all_errors(answers, y[testings_i], d[testings_i])
+                error_list = [(y[testings_i[i]], d[testings_i[i]]) for i in range_ if answers[i] != y[testings_i[i]]]
+                errors[j] += self.get_all_errors(answers, error_list)
         errors /= cross_validation_times
         index_min = errors[:, 0].argmin()
         result_c = c_arr[index_min]
@@ -89,43 +89,41 @@ class MySvm(AbstractClassfier):
         self._mins = mins
         self._maxs = maxs
         self._divisor = max(abs(w_vec.dot(r)) for r in x)
-        self.simple_error = errors[index_min, 0]
-        self.weighted_error = errors[index_min, 1]
-        self.fp_error = errors[index_min, 2]
-        self.fn_error = errors[index_min, 3]
-        self.detection_rate = errors[index_min, 4]
+        #answers = [(1 if w_vec.dot(x[i]) > 0 else -1) for i in range(n)]
+        #error_list = [(y[i], d[i]) for i in range(n) if y[i] != answers[i]]
+        #err, w_err, fp_err, fn_err = self.get_all_errors(answers, error_list)
+        self.simple_error = errors[index_min, 0]  #max(err, errors[index_min, 0])
+        self.weighted_error = errors[index_min, 1]  #max(w_err, errors[index_min, 1])
+        self.fp_error = errors[index_min, 2]  #max(fp_err, errors[index_min, 2])
+        self.fn_error = errors[index_min, 3]  #max(fn_err, errors[index_min, 3])
 
     @staticmethod
-    def get_all_errors(answers, y, d):
-        n = len(answers)
-        error_list = [(y[i], d[i]) for i in range(n) if answers[i] != y[i]]
+    def get_all_errors(answers, error_list):
         simple_error = len(error_list)
         weighted_error = sum(t[1] for t in error_list)
         fp_error = sum(1 for t in error_list if t[0] == -1)
         fn_error = sum(1 for t in error_list if t[0] == 1)
+        tlen = len(answers)
         tpos = sum(1 for x in answers if x == 1)
-        tneg = n - tpos
-        pos_y = (y == 1).sum()
-        if n > 0:
-            simple_error /= n
-            weighted_error /= n
+        tneg = tlen - tpos
+        if tlen > 0:
+            simple_error /= tlen
+            weighted_error /= tlen
             if tpos > 0:
                 fp_error /= tpos
-            if pos_y > 0:
-                detection_rate = (pos_y - fn_error) / pos_y
             if tneg > 0:
                 fn_error /= tneg
-        return np.array([simple_error, weighted_error, fp_error, fn_error, detection_rate])
+        return np.array([simple_error, weighted_error, fp_error, fn_error])
 
     def to_list(self):
         return [self._w, self._b, self._mins, self._maxs, self._divisor,
-                [self.simple_error, self.weighted_error, self.fp_error, self.fn_error, self.detection_rate]]
+                [self.simple_error, self.weighted_error, self.fp_error, self.fn_error]]
 
     def from_list(self, list_):
         if len(list_) != 6:
             raise ValueError('from_list: len(list_) has to be 6')
         self._w, self._b, self._mins, self._maxs, self._divisor, errors = list_
-        self.simple_error, self.weighted_error, self.fp_error, self.fn_error, self.detection_rate = errors
+        self.simple_error, self.weighted_error, self.fp_error, self.fn_error = errors
 
     def classify(self, x):
         return 1 if self.valuefy(x) > 0 else -1

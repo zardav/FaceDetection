@@ -1,23 +1,26 @@
-import numpy as np
-from scipy import ndimage, misc
-from matplotlib import pyplot as plt
 import glob
-from MyViola import MyViolaClassifier
-from Svm import Svm
+
+import numpy as np
+from matplotlib import pyplot as plt
+from scipy import misc
+
 import funcs
+from MyViola import MyViolaClassifier
 
 
 def find_face(img, shape, mv):
     res_i = (0, 0)
     res_j = (0, 0)
     res_scl = 1
+    scl = 1
     max_ = 0
-    scales = np.arange(.2, .35, .025)
     m, n = shape
-    for scl in scales:
-        img_ = misc.imresize(img, scl)
-        mv.change_image(img_)
-        x, y = img_.shape[:2]
+    while img.shape[0] > 400 or img.shape[1] > 400:
+        img = misc.imresize(img, 0.7)
+        scl *= 0.7
+    while img.shape[0] > m and img.shape[1] > n:
+        mv.change_image(img)
+        x, y = img.shape[:2]
         if x < m or y < n:
             continue
         for i, j in funcs.iter_shape((x, y), shape, 4):
@@ -26,6 +29,8 @@ def find_face(img, shape, mv):
                 max_ = val
                 res_i, res_j = i, j
                 res_scl = scl
+        img = misc.imresize(img, 0.8)
+        scl *= 0.8
     return (int(res_i[0] / res_scl), int(res_i[1] / res_scl)), (int(res_j[0] / res_scl), int(res_j[1] / res_scl))
 
 
@@ -34,7 +39,7 @@ def get_sub_pics_with_size(imgs, shape):
     m, n = shape
     for img in imgs:
         yield misc.imresize(img, shape)
-        while img.shape[0] > 800:
+        while img.shape[0] > 200:
             img = misc.imresize(img, 0.5)
         for scl in scales:
             img_ = misc.imresize(img, scl)
@@ -57,7 +62,8 @@ def temp():
     mv.add_examples(faces, 1)
     files = glob.glob('../faces/nofaces/*.jpg')
     nofaces = (misc.imread(im) for im in files)
-    mv.add_examples(get_sub_pics_with_size(nofaces, (70, 70)), -1)
+    #mv.add_examples(get_sub_pics_with_size(nofaces, (70, 70)), -1)
+    mv.add_examples((misc.imresize(nf, (70, 70)) for nf in nofaces), -1)
     mv.learn()
     mv.save('my_viola.pkl')
     files = glob.glob('../faces/*.jpg')
@@ -90,20 +96,23 @@ def get_all_faces_rects(img, shape, mv):
 
 
 def get_all_windows(img, shape, mv):
-    scales = np.arange(.2, .35, .02)
     m, n = shape
-    for scl in scales:
-        img_ = misc.imresize(img, scl)
-        mv.change_image(img_)
-        x, y = img_.shape[:2]
-        if x < m or y < n:
-            continue
+    base_m, base_n = 600, 600
+    scl = 1
+    while img.shape[0] > base_m or img.shape[1] > base_n:
+        img = misc.imresize(img, 0.8)
+        scl *= 0.8
+    while img.shape[0] > m and img.shape[1] > n:
+        mv.change_image(img)
+        x, y = img.shape[:2]
         for i, j in funcs.iter_shape((x, y), shape, 4):
             val = mv.valuefy((i, j))
             if val > 0:
                 res_i = (int(i[0] / scl), int(i[1] / scl))
                 res_j = (int(j[0] / scl), int(j[1] / scl))
                 yield ((res_i, res_j), val)
+        img = misc.imresize(img, 0.8)
+        scl *= 0.8
 
 
 def is_pos_in_rect(pos, rect):
@@ -136,3 +145,32 @@ def filter_overlap_windows(windows):
             maxs.append(w)
     return maxs
 
+
+def find_with_rotate(img, shape, mv):
+    angle = 22
+    angle_rad = angle / 180 * np.pi
+    normal = get_all_faces_rects(img, shape, mv)
+    im_right = misc.imrotate(img, angle)
+    right = get_all_faces_rects(im_right, shape, mv)
+    im_left = misc.imrotate(img, -angle)
+    left = get_all_faces_rects(im_left, shape, mv)
+    rot_mat = np.array([[np.cos(angle_rad), -np.sin(angle_rad)], [np.sin(angle_rad), np.cos(angle_rad)]])
+    for r in normal:
+        yield r
+    for r in left:
+        m, n = im_left.shape[:2]
+        x, y = r
+        t = rot_mat.dot([x[0] - m / 2, y[0] - n / 2])[0] + m / 2  # top
+        b = rot_mat.dot([x[1] - m / 2, y[1] - n / 2])[0] + m / 2  # bottom
+        l = rot_mat.dot([x[0] - m / 2, y[1] - n / 2])[1] + n / 2  # left
+        r = rot_mat.dot([x[1] - m / 2, y[0] - n / 2])[1] + n / 2  # right
+        yield ((t, b), (l, r))
+    rot_mat = rot_mat.T
+    for r in right:
+        m, n = im_right.shape[:2]
+        x, y = r
+        l = rot_mat.dot([x[0] - m / 2, y[0] - n / 2])[1] + n / 2  # left
+        r = rot_mat.dot([x[1] - m / 2, y[1] - n / 2])[1] + n / 2  # right
+        t = rot_mat.dot([x[0] - m / 2, y[1] - n / 2])[0] + m / 2  # top
+        b = rot_mat.dot([x[1] - m / 2, y[0] - n / 2])[0] + m / 2  # bottom
+        yield ((t, b), (l, r))

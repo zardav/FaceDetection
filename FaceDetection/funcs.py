@@ -4,7 +4,7 @@ import numpy as np
 class IntImg:
     def __init__(self, mat):
         x, y = mat.shape
-		#########################################################################
+        #########################################################################
         # In the following lines:
         # Create matrix 'intmat' that its size is size of mat+1 (for x and for y).
         # First row and first column initialize in zero.
@@ -33,7 +33,7 @@ def iter_shape(outer_shape, inner_shape, step):
 
 
 def implusrect(img, i, j, rgb):
-	"""
+    """
     The role of the functio to add rectangle around some region in picture
     :param i: (start_row, end_row)
     :param j: (start_col, end_col)
@@ -43,8 +43,8 @@ def implusrect(img, i, j, rgb):
     img1 = np.array(img)
     i1, i2 = i
     j1, j2 = j
-    img1[i1:i2, j1] = np.array(rgb)
-    img1[i1:i2, j2] = np.array(rgb)
-    img1[i1, j1:j2] = np.array(rgb)
-    img1[i2, j1:j2] = np.array(rgb)
+    img1[i1:i2, j1:j1+4] = np.array(rgb)
+    img1[i1:i2, j2-4:j2] = np.array(rgb)
+    img1[i1:i1+4, j1:j2] = np.array(rgb)
+    img1[i2-4:i2, j1:j2] = np.array(rgb)
     return img1
